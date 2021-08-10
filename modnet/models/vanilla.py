@@ -4,7 +4,6 @@ model with deterministic weights and outputs.
 """
 
 from typing import List, Tuple, Dict, Optional, Callable, Any
-from pathlib import Path
 import multiprocessing
 
 import pandas as pd
@@ -15,14 +14,14 @@ import tensorflow as tf
 
 from modnet.preprocessing import MODData
 from modnet.utils import LOG
-from modnet import __version__
+from modnet.models.base import BaseMODNetModel
 
 import tqdm
 
 __all__ = ("MODNetModel",)
 
 
-class MODNetModel:
+class MODNetModel(BaseMODNetModel):
     """Container class for the underlying tf.keras `Model`, that handles
     setting up the architecture, activations, training and learning curve.
 
@@ -38,71 +37,6 @@ class MODNetModel:
     """
 
     can_return_uncertainty = False
-
-    def __init__(
-        self,
-        targets: List,
-        weights: Dict[str, float],
-        num_neurons=([64], [32], [16], [16]),
-        num_classes: Optional[Dict[str, int]] = None,
-        n_feat: Optional[int] = 64,
-        act: str = "relu",
-        out_act: str = "linear",
-    ):
-        """Initialise the model on the passed targets with the desired
-        architecture, feature count and loss functions and activation functions.
-
-        Parameters:
-            targets: A nested list of targets names that defines the hierarchy
-                of the output layers.
-            weights: The relative loss weights to apply for each target.
-            num_classes: Dictionary defining the target types (classification or regression).
-                Should be constructed as follows: key: string giving the target name; value: integer n,
-                 with n=0 for regression and n>=2 for classification with n the number of classes.
-            num_neurons: A specification of the model layers, as a 4-tuple
-                of lists of integers. Hidden layers are split into four
-                blocks of `tf.keras.layers.Dense`, with neuron count specified
-                by the elements of the `num_neurons` argument.
-            n_feat: The number of features to use as model inputs.
-            act: A string defining a tf.keras activation function to pass to use
-                in the `tf.keras.layers.Dense` layers.
-            out_act: A string defining a tf.keras activation function to pass to use
-                for the last output layer (regression only)
-
-        """
-
-        self.__modnet_version__ = __version__
-
-        if n_feat is None:
-            n_feat = 64
-        self.n_feat = n_feat
-        self.weights = weights
-        self.num_classes = num_classes
-        self.num_neurons = num_neurons
-        self.act = act
-        self.out_act = out_act
-
-        self._scaler = None
-        self.optimal_descriptors = None
-        self.target_names = None
-        self.targets = targets
-        self.model = None
-
-        f_temp = [x for subl in targets for x in subl]
-        self.targets_flatten = [x for subl in f_temp for x in subl]
-        self.num_classes = {name: 0 for name in self.targets_flatten}
-        if num_classes is not None:
-            self.num_classes.update(num_classes)
-        self._multi_target = len(self.targets_flatten) > 1
-
-        self.model = self.build_model(
-            targets,
-            n_feat,
-            num_neurons,
-            act=act,
-            out_act=out_act,
-            num_classes=self.num_classes,
-        )
 
     def build_model(
         self,
@@ -625,15 +559,15 @@ class MODNetModel:
         return predictions
 
     def evaluate(self, test_data: MODData) -> pd.DataFrame:
-        """Evaluates the target values for the passed MODData by returning the corresponding loss.
+        """Evaluates the target values for the passed `MODData` and returns the corresponding loss.
 
         Parameters:
             test_data: A featurized and feature-selected `MODData`
                 object containing the descriptors used in training.
 
-
         Returns:
-            Loss score
+            An array containing the defined losses for the model on the passed test data.
+
         """
         # prevents Nan predictions if some features are inf
         x = (
@@ -681,69 +615,6 @@ class MODNetModel:
         model_json, model_weights = self.model
         self.model = tf.keras.models.model_from_json(model_json)
         self.model.set_weights(model_weights)
-
-    def save(self, filename: str) -> None:
-        """Save the `MODNetModel` to filename:
-
-        If the filename ends in "tgz", "bz2" or "zip", the pickle
-        will be compressed accordingly by :meth:`pandas.DataFrame.to_pickle`.
-
-        Parameters:
-            filename: The base filename to save to.
-
-
-        """
-        self._make_picklable()
-        pd.to_pickle(self, filename)
-        self._restore_model()
-        LOG.info(f"Model successfully saved as {filename}!")
-
-    @staticmethod
-    def load(filename: str) -> "MODNetModel":
-        """Load `MODNetModel` object pickled by the :meth:`MODNetModel.save` method.
-
-        If the filename ends in "tgz", "bz2" or "zip", the pickle
-        will be decompressed accordingly by :func:`pandas.read_pickle`.
-
-        Returns:
-            The loaded `MODNetModel` object.
-        """
-        pickled_data = None
-
-        if isinstance(filename, Path):
-            filename = str(filename)
-
-        # handle .zip files explicitly for OS X/macOS compatibility
-        if filename.endswith(".zip"):
-            from zipfile import ZipFile
-
-            with ZipFile(filename, "r") as zf:
-                namelist = zf.namelist()
-                _files = [
-                    _
-                    for _ in namelist
-                    if not _.startswith("__MACOSX/") or _.startswith(".DS_STORE")
-                ]
-                if len(_files) == 1:
-                    with zf.open(_files.pop()) as f:
-                        pickled_data = pd.read_pickle(f)
-
-        if pickled_data is None:
-            pickled_data = pd.read_pickle(filename)
-
-        if isinstance(pickled_data, MODNetModel):
-            if not hasattr(pickled_data, "__modnet_version__"):
-                pickled_data.__modnet_version__ = "unknown"
-            pickled_data._restore_model()
-            LOG.info(
-                f"Loaded {pickled_data} object, created with modnet version {pickled_data.__modnet_version__}"
-            )
-            return pickled_data
-
-        raise ValueError(
-            f"File {filename} did not contain compatible data to create a MODNetModel object, "
-            f"instead found {pickled_data.__class__.__name__}."
-        )
 
 
 def validate_model(

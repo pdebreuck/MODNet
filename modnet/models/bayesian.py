@@ -12,7 +12,6 @@ import pandas as pd
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from modnet import __version__
 from modnet.models.vanilla import MODNetModel
 from modnet.preprocessing import MODData
 
@@ -61,6 +60,14 @@ class BayesianMODNetModel(MODNetModel):
                 of lists of integers. Hidden layers are split into four
                 blocks of `tf.keras.layers.Dense`, with neuron count specified
                 by the elements of the `num_neurons` argument.
+            num_classes: Dictionary defining the target types (classification or regression).
+                Should be constructed as follows: key: string giving the target name; value: integer n,
+                 with n=0 for regression and n>=2 for classification with n the number of classes.
+            n_feat: The number of features to use as model inputs.
+            act: A string defining a tf.keras activation function to pass to use
+                in the `tf.keras.layers.Dense` layers.
+            out_act: A string defining a tf.keras activation function to pass to use
+                for the last output layer
             bayesian_layers: Same shape as num_neurons, with True for a Bayesian DenseVariational layer,
                 False for a normal Dense layer. Default is None and will only set last layer as Bayesian.
             prior: Prior to use for the DenseVariational layers, default is independent normal with learnable mean.
@@ -70,48 +77,21 @@ class BayesianMODNetModel(MODNetModel):
                 Should be constructed as follows: key: string giving the target name; value: integer n,
                  with n=0 for regression and n>=2 for classification with n the number of classes.
             n_feat: The number of features to use as model inputs.
-            act: A string defining a tf.keras activation function to pass to use
-                in the `tf.keras.layers.Dense` layers.
-            out_act: A string defining a tf.keras activation function to pass to use
-                for the last output layer
 
         """
 
-        self.__modnet_version__ = __version__
-
-        if n_feat is None:
-            n_feat = 64
-        self.n_feat = n_feat
-        self.weights = weights
-        self.num_classes = num_classes
-        self.num_neurons = num_neurons
-        self.act = act
-        self.out_act = out_act
-
-        self._scaler = None
-        self.optimal_descriptors = None
-        self.target_names = None
-        self.targets = targets
-        self.model = None
-
-        f_temp = [x for subl in targets for x in subl]
-        self.targets_flatten = [x for subl in f_temp for x in subl]
-        self.num_classes = {name: 0 for name in self.targets_flatten}
-        if num_classes is not None:
-            self.num_classes.update(num_classes)
-        self._multi_target = len(self.targets_flatten) > 1
-
-        self.model = self.build_model(
-            targets,
-            n_feat,
-            num_neurons,
+        return super().__init__(
+            targets=targets,
+            weights=weights,
+            num_neurons=num_neurons,
+            num_classes=num_classes,
+            n_feat=n_feat,
+            act=act,
+            out_act=out_act,
             bayesian_layers=bayesian_layers,
             prior=prior,
             posterior=posterior,
             kl_weight=kl_weight,
-            act=act,
-            out_act=out_act,
-            num_classes=self.num_classes,
         )
 
     def build_model(
@@ -119,14 +99,14 @@ class BayesianMODNetModel(MODNetModel):
         targets: List,
         n_feat: int,
         num_neurons: Tuple[List[int], List[int], List[int], List[int]],
+        num_classes: Optional[Dict[str, int]] = None,
+        act: str = "relu",
+        out_act: str = "relu",
         bayesian_layers=None,
         prior=None,
         posterior=None,
         kl_weight=None,
-        num_classes: Optional[Dict[str, int]] = None,
-        act: str = "relu",
-        out_act: str = "relu",
-    ):
+    ) -> tf.keras.Model:
         """Builds the Bayesian Neural Network and sets the `self.model` attribute.
 
         Parameters:
@@ -356,14 +336,3 @@ class BayesianMODNetModel(MODNetModel):
             return predictions, unc
         else:
             return predictions
-
-    def fit_preset(*args, **kwargs):
-        """Not implemented"""
-
-        raise RuntimeError("Not implemented.")
-
-    def save(self, filename: str):
-        raise RuntimeError("Save not implemented for Bayesian model")
-
-    def load(filename: str):
-        raise RuntimeError("Load not implemented for Bayesian model")

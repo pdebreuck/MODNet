@@ -169,15 +169,15 @@ class EnsembleMODNetModel(MODNetModel):
             return df_mean
 
     def evaluate(self, test_data: MODData) -> pd.DataFrame:
-        """Evaluates the target values for the passed MODData by returning the corresponding loss.
+        """Evaluates the target values for the passed `MODData` and returns the corresponding loss.
 
         Parameters:
             test_data: A featurized and feature-selected `MODData`
                 object containing the descriptors used in training.
 
-
         Returns:
-            Loss score
+            An array containing the defined losses for the model on the passed test data.
+
         """
         all_losses = np.zeros(self.n_models)
         for i, m in enumerate(self.model):
@@ -406,17 +406,12 @@ class EnsembleMODNetModel(MODNetModel):
         return models, val_losses, best_learning_curve, learning_curves, best_preset
 
     def _make_picklable(self):
-        """
-        transforms inner keras model to jsons so that th MODNet object becomes picklable.
-        """
-
+        """Calls ``model._make_pickleable(...)`` on all underlying models in the ensemble."""
         for m in self.model:
             m._make_picklable()
 
     def _restore_model(self):
-        """
-        restore inner keras model after running make_picklable
-        """
+        """Calls ``model._restore_model(...)`` on all underlying models in the ensemble."""
 
         for m in self.model:
             m._restore_model()
