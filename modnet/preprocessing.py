@@ -975,11 +975,11 @@ class MODData:
             setattr(split_data, attr, getattr(self, attr).iloc[indices])
 
         for attr in [_ for _ in dir(self) if _ not in extensive_dataframes]:
-            if not callable(getattr(self, attr)) and not attr.startswith("__"):
-                try:
+            try:
+                if not callable(getattr(self, attr)) and not attr.startswith("__"):
                     setattr(split_data, attr, getattr(self, attr))
-                except AttributeError:
-                    pass
+            except AttributeError:
+                pass
 
         split_data.__modnet_version__ = __version__
 
