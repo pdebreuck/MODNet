@@ -16,6 +16,7 @@ from functools import partial
 from pymatgen import Structure, Composition
 
 from sklearn.feature_selection import mutual_info_regression, mutual_info_classif
+from sklearn.preprocessing import MinMaxScaler
 import pandas as pd
 import numpy as np
 import tqdm
@@ -106,6 +107,16 @@ def nmi_target(
         to_drop = frange[frange == 0].index
         df_feat = df_feat.drop(to_drop, axis=1)
 
+    # preprocess the input matrix
+    if (
+        df_feat.isna().any().any()
+    ):  # only preprocess if nans are present to preserve past behaviour
+        scaler = MinMaxScaler(feature_range=(-0.5, 0.5))
+        x = df_feat.values
+        x = scaler.fit_transform(x)
+        x = np.nan_to_num(x, nan=-1)
+        df_feat = pd.DataFrame(x, index=df_feat.index, columns=df_feat.columns)
+
     # Take right MI fun depending on regression / classification
     if task_type == "regression":
         _mifun = mutual_info_regression
@@ -175,6 +186,16 @@ def get_cross_nmi(
         n_neighbors = kwargs.pop("n_neighbors")
     else:
         n_neighbors = 3
+
+    # preprocess the input matrix
+    if (
+        df_feat.isna().any().any()
+    ):  # only preprocess if nans are present to preserve past behaviour
+        scaler = MinMaxScaler(feature_range=(-0.5, 0.5))
+        x = df_feat.values
+        x = scaler.fit_transform(x)
+        x = np.nan_to_num(x, nan=-1)
+        df_feat = pd.DataFrame(x, index=df_feat.index, columns=df_feat.columns)
 
     # Prepare the output DataFrame and compute the mutual information
     mutual_info = pd.DataFrame([], columns=df_feat.columns, index=df_feat.columns)
@@ -723,6 +744,7 @@ class MODData:
         n: int = 1500,
         cross_nmi: Optional[pd.DataFrame] = None,
         use_precomputed_cross_nmi: bool = False,
+        n_samples=6000,
         n_jobs: int = None,
     ):
         """Compute the mutual information between features and targets,
@@ -775,7 +797,10 @@ class MODData:
                 )
 
         if self.cross_nmi is None:
-            df = self.df_featurized.copy()
+            if len(self.df_featurized) > n_samples:
+                df = self.df_featurized.sample(n=n_samples, random_state=12)
+            else:
+                df = self.df_featurized.copy()
             self.cross_nmi, self.feature_entropy = get_cross_nmi(
                 df, return_entropy=True, n_jobs=n_jobs
             )
@@ -794,8 +819,18 @@ class MODData:
                 task_type = "classification"
             else:
                 task_type = "regression"
+
+            if len(self.df_featurized) > n_samples:
+                subset_ids = np.random.permutation(len(self.df_featurized))[:n_samples]
+                df = self.df_featurized.iloc[subset_ids]
+                df_target = self.df_targets.iloc[subset_ids][[name]]
+            else:
+                df = self.df_featurized.copy()
+                df_target = self.df_targets[[name]]
             self.target_nmi = nmi_target(
-                self.df_featurized, self.df_targets[[name]], task_type
+                df,
+                df_target,
+                task_type,
             )[name]
 
             LOG.info("Computing optimal features...")
@@ -975,11 +1010,11 @@ class MODData:
             setattr(split_data, attr, getattr(self, attr).iloc[indices])
 
         for attr in [_ for _ in dir(self) if _ not in extensive_dataframes]:
-            if not callable(getattr(self, attr)) and not attr.startswith("__"):
-                try:
+            try:
+                if not callable(getattr(self, attr)) and not attr.startswith("__"):
                     setattr(split_data, attr, getattr(self, attr))
-                except AttributeError:
-                    pass
+            except AttributeError:
+                pass
 
         split_data.__modnet_version__ = __version__
 
