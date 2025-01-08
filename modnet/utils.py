@@ -1,4 +1,6 @@
 import logging
+import numpy as np
+from sklearn.model_selection import train_test_split
 import sys
 
 LOG = logging.getLogger("modnet")
@@ -28,3 +30,29 @@ def get_hash_of_file(fname, algo="sha512"):
             fb = f.read(block_size)
 
     return _hash.hexdigest()
+
+
+def generate_shuffled_and_stratified_val_split(
+    y: np.ndarray, val_fraction: float, classification: bool
+):
+    """
+    Generate train validation split that is shuffled, reproducible and, if classification, stratified.
+    Please note for classification tasks that stratification is performed on first target.
+    y: np.ndarray (n_samples, n_targets) or (n_samples, n_targets, n_classes)
+    """
+    if classification:
+        if isinstance(y[0][0], list) or isinstance(y[0][0], np.ndarray):
+            ycv = np.argmax(y[:, 0], axis=1)
+        else:
+            ycv = y[:, 0]
+        return train_test_split(
+            range(len(y)),
+            test_size=val_fraction,
+            random_state=42,
+            shuffle=True,
+            stratify=ycv,
+        )
+    else:
+        return train_test_split(
+            range(len(y)), test_size=val_fraction, random_state=42, shuffle=True
+        )

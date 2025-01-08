@@ -20,7 +20,7 @@ def test_train_small_model_single_target(subset_moddata, tf_session):
         n_feat=10,
     )
 
-    model.fit(data, epochs=2)
+    model.fit(data, epochs=2, val_fraction=0.15)
     model.predict(data)
     assert not np.isnan(model.evaluate(data))
 
@@ -50,7 +50,7 @@ def test_train_small_model_single_target_classif(subset_moddata, tf_session):
         n_feat=10,
     )
 
-    model.fit(data, epochs=2)
+    model.fit(data, epochs=2, val_fraction=0.15)
     assert not np.isnan(model.evaluate(data))
 
 
@@ -71,7 +71,7 @@ def test_train_small_model_multi_target(subset_moddata, tf_session):
         n_feat=10,
     )
 
-    model.fit(data, epochs=2)
+    model.fit(data, epochs=2, val_fraction=0.15)
     model.predict(data)
     assert not np.isnan(model.evaluate(data))
 

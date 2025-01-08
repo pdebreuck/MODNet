@@ -14,4 +14,8 @@ except ImportError:
 
 from .ensemble import EnsembleMODNetModel
 
-__all__ = ("MODNetModel", "BayesianMODNetModel", "EnsembleMODNetModel")
+__all__ = (
+    "MODNetModel",
+    "BayesianMODNetModel",
+    "EnsembleMODNetModel",
+)
