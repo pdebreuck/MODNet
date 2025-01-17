@@ -29,3 +29,11 @@ def test_ga(small_moddata, tf_session):
 
     assert type(model) is EnsembleMODNetModel
     assert len(model.models) == 1
+
+
+def test_crossover():
+    from modnet.hyper_opt.fit_genetic import Individual
+
+    indiv1 = Individual(max_feat=50, num_classes={}, multi_label=False)
+    indiv2 = Individual(max_feat=50, num_classes={}, multi_label=False)
+    indiv1.crossover(indiv2)
