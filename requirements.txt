@@ -3,4 +3,4 @@ pandas==2.2.3
 scikit-learn==1.5.0
 matminer==0.9.2
 numpy>=1.25
-pymatgen==2024.5.31
+pymatgen==2024.11.13
