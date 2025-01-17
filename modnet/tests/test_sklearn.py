@@ -1,10 +1,20 @@
 import numpy as np
 import pandas as pd
+from sklearn.pipeline import make_pipeline
+from modnet.sklearn import MODNetFeaturizer, RR, MODNetRegressor, MODNetClassifier
+from sklearn.metrics import accuracy_score
+from pymatgen.core import Composition
 
-from modnet.sklearn import RR
+
+def test_featurize():
+    comps = [Composition("Li"), Composition("Si")]
+    f = MODNetFeaturizer()
+    f.fit(comps)
+    df = f.transform(comps)
+    assert df.shape[1] > 0
 
 
-def test_fit():
+def test_rr_fit():
     np.random.seed(11)
     npoints = 1000
 
@@ -76,7 +86,7 @@ def test_fit():
     assert rr.optimal_descriptors == ["x2", "x3", "x4", "x"]
 
 
-def test_transform():
+def test_rr_transform():
     # simple test where only two features should be kept
     df_x = pd.DataFrame(
         {"a": [1, 2, 2], "b": [5, 5, 9], "c": [0, 1, 0], "d": [114, 21, 68]},
@@ -88,3 +98,41 @@ def test_transform():
     assert list(df.index) == ["id1", "id2", "id3"]
     assert list(df.columns) == ["c", "a"]
     assert (df.values == np.array([[0, 1], [1, 2], [0, 2]])).all()
+
+
+def test_regressor():
+    X = np.random.rand(100, 20)
+    y = X.min(axis=1)
+    regr = MODNetRegressor()
+    regr.fit(X, y)
+    preds = regr.predict(X)
+    assert np.absolute(preds - y).max() < 1
+
+
+def test_classifier():
+    X = np.random.rand(100, 50)
+    y = np.random.randint(0, 2, 100)
+    X[:, 0] = y
+    regr = MODNetClassifier()
+    regr.fit(X, y)
+    preds = regr.predict(X)
+    assert accuracy_score(y, preds) > 0.95
+
+
+def test_pipe_transform():
+    pipe = make_pipeline(MODNetFeaturizer(), RR(drop_thr=0, n_feat=10))
+    X = [Composition("Si"), Composition("Cu"), Composition("Al"), Composition("Ti")]
+    y = pd.DataFrame({"p": [1.1, 1.6, 2.6, 0.5]})
+    X_new = pipe.fit_transform(X, y)
+    assert X_new.shape == (4, 10)
+
+
+def test_pipe_fit():
+    pipe = make_pipeline(
+        MODNetFeaturizer(), RR(drop_thr=0, n_feat=10), MODNetRegressor()
+    )
+    X = [Composition("Si"), Composition("Cu"), Composition("Al"), Composition("Ti")]
+    y = pd.DataFrame({"p": [1.1, 1.6, 2.6, 0.5]})
+    pipe.fit(X, y)
+    preds = pipe.predict(X)
+    assert preds.shape == (4, 1)
