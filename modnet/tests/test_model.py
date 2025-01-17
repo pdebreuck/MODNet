@@ -75,6 +75,38 @@ def test_train_small_model_multi_target(subset_moddata, tf_session):
     model.predict(data)
     assert not np.isnan(model.evaluate(data))
 
+def test_train_small_model_multi_target_custom_loss(subset_moddata, tf_session):
+    """Tests the multi-target training."""
+    from modnet.models import MODNetModel
+    from functools import partial
+    import tensorflow as tf
+
+    data = subset_moddata
+    # set 'optimal' features manually
+    data.optimal_features = [
+        col for col in data.df_featurized.columns if col.startswith("ElementProperty")
+    ]
+
+    def custom_loss(y_true, y_pred, rescale=1):
+        loss1 = y_pred - y_true
+        return rescale * tf.reduce_mean(
+            tf.math.abs(
+                tf.boolean_mask(loss1, tf.reduce_all(~tf.math.is_nan(loss1), axis=1))
+            )
+        )
+
+    model = MODNetModel(
+        [[["eform", "egap"]]],
+        weights={"eform": 1, "egap": 1},
+        num_neurons=[[16], [8], [8], [4]],
+        n_feat=10,
+    )
+
+    model.fit(data, loss=[partial(custom_loss, rescale=10), custom_loss], epochs=2)
+    model.predict(data)
+    breakpoint()
+    assert not np.isnan(model.evaluate(data))
+
 
 def test_train_small_model_presets(subset_moddata, tf_session):
     """Tests the `fit_preset()` method."""
@@ -346,6 +378,41 @@ def test_train_small_bootstrap_multi_target(small_moddata, tf_session):
     )
 
     model.fit(data, epochs=2)
+    model.predict(data, return_unc=True)
+
+
+def test_train_small_bootstrap_custom_loss_multi_target(small_moddata, tf_session):
+    """Tests a multi-target ensemble model with a custom loss per target,
+    modified from Hao Wu's example.
+
+    """
+    from modnet.models import EnsembleMODNetModel
+    import tensorflow as tf
+
+    def custom_loss(y_true, y_pred):
+        loss1 = y_pred - y_true
+        return tf.reduce_mean(
+            tf.math.abs(
+                tf.boolean_mask(loss1, tf.reduce_all(~tf.math.is_nan(loss1), axis=1))
+            )
+        )
+
+    data = small_moddata
+    # set 'optimal' features manually
+    data.optimal_features = [
+        col for col in data.df_featurized.columns if col.startswith("ElementProperty")
+    ]
+
+    model = EnsembleMODNetModel(
+        [[["eform", "egap"]]],
+        weights={"eform": 1, "egap": 1},
+        num_neurons=[[16], [8], [8], [4]],
+        n_feat=10,
+        n_models=3,
+        bootstrap=True,
+    )
+
+    model.fit(data, loss=[custom_loss, custom_loss], epochs=2)
     model.predict(data, return_unc=True)
 
 
